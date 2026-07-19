@@ -1,0 +1,5 @@
+node_modules/
+packages/ide/dist/
+packages/ide/*.vsix
+*.log
+.DS_Store

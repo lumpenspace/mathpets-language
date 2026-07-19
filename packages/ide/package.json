@@ -1,0 +1,112 @@
+{
+  "name": "mathpets-ide",
+  "displayName": "MathPets IDE",
+  "description": "VS Code language support for MathPets .pet source files.",
+  "version": "0.1.0",
+  "private": false,
+  "publisher": "mathpets",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lumpenspace/mathpets-language.git",
+    "directory": "packages/ide"
+  },
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./src/extension.js",
+    "activationEvents": [
+      "onLanguage:pet",
+      "onCommand:pets.openPreview",
+      "onCommand:pets.compileFile",
+      "onCommand:pets.compileWorkspace",
+      "onCommand:pets.showOutput"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pet",
+        "aliases": [
+          "Pet",
+          "MathPets"
+        ],
+        "extensions": [
+          ".pet"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pet",
+        "scopeName": "source.pet",
+        "path": "./syntaxes/pet.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pets.openPreview",
+        "title": "Pet: Open Preview",
+        "category": "Pet"
+      },
+      {
+        "command": "pets.compileFile",
+        "title": "Pet: Compile Current File",
+        "category": "Pet"
+      },
+      {
+        "command": "pets.compileWorkspace",
+        "title": "Pet: Compile Workspace",
+        "category": "Pet"
+      },
+      {
+        "command": "pets.showOutput",
+        "title": "Pet: Show Compilation Output",
+        "category": "Pet"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "pets.openPreview",
+          "when": "resourceLangId == pet",
+          "group": "navigation"
+        },
+        {
+          "command": "pets.compileFile",
+          "when": "resourceLangId == pet",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pets.openPreview",
+          "when": "resourceLangId == pet"
+        },
+        {
+          "command": "pets.compileFile",
+          "when": "resourceLangId == pet"
+        },
+        {
+          "command": "pets.compileWorkspace"
+        },
+        {
+          "command": "pets.showOutput"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MathPets",
+      "properties": {
+        "pets.compileOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compile the current MathPets .pet file whenever it is saved."
+        }
+      }
+    }
+  }
+}

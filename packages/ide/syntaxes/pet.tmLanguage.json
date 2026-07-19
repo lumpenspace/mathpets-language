@@ -1,0 +1,145 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Pet",
+  "scopeName": "source.pet",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#sections"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#expressions"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.pet",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.pet",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pet",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.pet",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pet",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "sections": {
+      "patterns": [
+        {
+          "name": "entity.name.section.pet",
+          "match": "^\\s*(model|defs|world|params|memory|monitors|patches|zones|pets|pets|links|setup|step)\\b(?:\\s+staged)?\\s*:"
+        },
+        {
+          "name": "keyword.control.stop.pet",
+          "match": "^\\s*stop\\s+when\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.pet",
+          "match": "\\b(let|return|pet|pet|actions|create|repeat|staged)\\b"
+        },
+        {
+          "name": "storage.type.pet",
+          "match": "\\b(number|boolean|string|enum)\\b"
+        },
+        {
+          "name": "entity.name.function.pet",
+          "match": "\\b[A-Za-z][A-Za-z0-9_-]*(?=\\s*\\()"
+        },
+        {
+          "name": "variable.other.assignment.pet",
+          "match": "\\b[A-Za-z][A-Za-z0-9_-]*(?=\\s*(?::|<-))"
+        }
+      ]
+    },
+    "expressions": {
+      "patterns": [
+        {
+          "name": "keyword.control.pet",
+          "match": "\\b(if|then|else|and|or|not|where|otherwise|repeat|report|in|in-radius|in-square|around|when)\\b"
+        },
+        {
+          "name": "support.type.agentset.pet",
+          "match": "\\b(patches|pets|pets|turtles|links|neighbors4|neighbors8|neighbors-at|neighbours-at)\\b"
+        },
+        {
+          "name": "support.function.builtin.pet",
+          "match": "\\b(count|any|sum|mean|nearest|slider|toggle|select|neighbor-at|neighbour-at|patch-at|patch-here|pet-at|pet-at|distance-to|towards|average-heading|average-heading-towards|follow-patch-gradient|random-float|random-int|random|floor|ceil|round|abs|min|max|sqrt|pow|sin|cos|tan|clamp)\\b"
+        },
+        {
+          "name": "variable.language.pet",
+          "match": "\\b(px|py|x|y|id|heading|min-x|max-x|min-y|max-y)\\b"
+        },
+        {
+          "name": "constant.language.boolean.pet",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.topology.pet",
+          "match": "\\b(box|torus|wrap-x|wrap-y)\\b"
+        },
+        {
+          "name": "constant.language.color-scale.pet",
+          "match": "\\b(viridis|inferno|magma|plasma|cividis|turbo|warm|cool|cubehelix|rainbow|sinebow)\\b"
+        },
+        {
+          "name": "keyword.operator.assignment.pet",
+          "match": "<-|="
+        },
+        {
+          "name": "keyword.operator.comparison.pet",
+          "match": "<=|>=|!=|<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.pet",
+          "match": "\\.\\.|[+\\-*/%]"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.pet",
+          "match": "\\b-?\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}

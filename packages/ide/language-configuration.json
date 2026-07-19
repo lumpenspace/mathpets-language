@@ -1,0 +1,25 @@
+{
+  "comments": {
+    "lineComment": "#"
+  },
+  "brackets": [
+    ["(", ")"],
+    ["[", "]"]
+  ],
+  "autoClosingPairs": [
+    ["(", ")"],
+    ["[", "]"],
+    ["\"", "\""],
+    ["'", "'"]
+  ],
+  "surroundingPairs": [
+    ["(", ")"],
+    ["[", "]"],
+    ["\"", "\""],
+    ["'", "'"]
+  ],
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^`~!@#$%^&*()=+[{]}\\\\|;:'\\\",.<>/?\\s]+)",
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(model|defs|[-A-Za-z0-9_]+\\([^)]*\\)\\s*:\\s*[^:]+|world|params|memory|monitors|patches|pets|pets|pet\\s+[-A-Za-z0-9_]+|pet\\s+[-A-Za-z0-9_]+|setup|step(?:\\s+staged)?|styles|presets)\\s*:\\s*(#.*)?$"
+  }
+}

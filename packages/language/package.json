@@ -1,0 +1,13 @@
+{
+  "name": "@pets/language",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@lezer/common": "^1.5.2",
+    "@lezer/lr": "^1.4.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

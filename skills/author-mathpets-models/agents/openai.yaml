@@ -1,0 +1,4 @@
+interface:
+  display_name: "Author MathPets Models"
+  short_description: "Design and compile MathPets simulations"
+  default_prompt: "Use $author-mathpets-models to create or revise a MathPets social or physical systems simulation."

@@ -1,0 +1,453 @@
+@precedence {
+  repeatRange @left
+}
+
+@top Document {
+  PreludeSection*
+  SetupSection
+  (StepSection | RoundSection)+
+  BrushSection?
+  StopSection?
+}
+
+PreludeSection {
+  ModelDeclaration |
+  DefsSection |
+  WorldSection |
+  ParamsSection |
+  MemorySection |
+  MonitorsSection |
+  PatchesSection |
+  ZonesSection |
+  PetsSection |
+  LinksSection |
+  TeamsSection |
+  BrushSection
+}
+
+ModelDeclaration { kw<"model"> Identifier ":"? lineEnd }
+
+DefsSection { kw<"defs"> ":" lineEnd DefDeclaration* }
+
+DefDeclaration {
+  DefHeader lineEnd DefStatement*
+}
+
+DefStatement {
+  LetStatement |
+  ReturnStatement |
+  DefExpressionStatement
+}
+
+LetStatement { kw<"let"> Identifier (":" Type)? "=" Expression lineEnd }
+
+ReturnStatement { kw<"return"> Expression lineEnd }
+
+DefExpressionStatement { DefExpression lineEnd }
+
+DefExpression {
+  IfExpression |
+  DefLogicExpression
+}
+
+DefLogicExpression {
+  DefCompareExpression ((kw<"and"> | kw<"or">) DefCompareExpression)*
+}
+
+DefCompareExpression {
+  DefAddExpression (CompareOp DefAddExpression)?
+}
+
+DefAddExpression {
+  DefMultiplyExpression (("+" | "-") DefMultiplyExpression)*
+}
+
+DefMultiplyExpression {
+  DefUnaryExpression (("*" | "/" | "%") DefUnaryExpression)*
+}
+
+DefUnaryExpression {
+  ("-" | kw<"not">)? DefPrimaryExpression
+}
+
+DefPrimaryExpression {
+  Number |
+  Name |
+  FieldAccess |
+  FunctionCall |
+  NearestExpression |
+  AggregateExpression |
+  CountExpression |
+  AnyExpression |
+  SetLiteral |
+  ParenthesizedExpression
+}
+
+WorldSection { kw<"world"> ":" lineEnd WorldProperty* }
+
+WorldProperty {
+  RangeProperty |
+  TopologyProperty
+}
+
+RangeProperty { (kw<"x"> | kw<"y">) ":" SignedNumber ".." SignedNumber lineEnd }
+
+TopologyProperty { kw<"topology"> ":" Identifier lineEnd }
+
+ParamsSection { kw<"params"> ":" lineEnd ParamDeclaration* }
+
+ParamDeclaration { Identifier ":" Type "=" ControlExpression lineEnd }
+
+MemorySection { kw<"memory"> ":" lineEnd MemoryDeclaration* }
+
+MemoryDeclaration { Identifier ":" Type "=" Expression lineEnd }
+
+MonitorsSection { kw<"monitors"> ":" lineEnd MonitorDeclaration* }
+
+MonitorDeclaration { Identifier PerTeamClause? ":" Type "=" Expression lineEnd }
+
+PatchesSection { kw<"patches"> ":" lineEnd PatchDeclaration* }
+
+PatchDeclaration { Identifier ":" Type "=" Expression lineEnd }
+
+ZonesSection { kw<"zones"> ":" lineEnd ZoneDeclaration* }
+
+ZoneDeclaration { kw<"zone"> Identifier kw<"size"> Number ":" lineEnd ZoneFieldDeclaration* }
+
+ZoneFieldDeclaration { Identifier ":" Type "=" Expression lineEnd }
+
+// Teams (docs/teams-design.md) are consumed by a pre-parse expansion; these
+// rules exist so the editor grammar accepts and highlights the syntax.
+TeamsSection { kw<"teams"> ":" lineEnd (TeamConstantDeclaration | TeamDeclaration)* }
+
+TeamDeclaration { Identifier ":" lineEnd }
+
+TeamConstantDeclaration { Identifier ":" SignedNumber lineEnd }
+
+PerTeamClause { kw<"per"> kw<"team"> }
+
+PetsSection { kw<"pets"> ":" lineEnd PetsLine* }
+
+PetsLine {
+  PetBreedDeclaration |
+  BareTeamBreedDeclaration |
+  PetFieldDeclaration |
+  ActionDeclaration |
+  RepeatBlockHeader |
+  WhereBlockHeader |
+  OtherwiseBlockHeader |
+  LetStatement |
+  AssignmentStatement |
+  CommandStatement lineEnd |
+  ActionCallStatement
+}
+
+PetBreedDeclaration { (kw<"pet"> | kw<"player">) Identifier PerTeamClause? ":" lineEnd }
+
+BareTeamBreedDeclaration { Identifier PerTeamClause ":" lineEnd }
+
+PetFieldDeclaration { Identifier ":" Type "=" Expression lineEnd }
+
+LinksSection { kw<"links"> ":" lineEnd LinkDeclaration* }
+
+LinkDeclaration {
+  kw<"link"> Identifier LinkDirection? LinkDecay? ":" lineEnd LinkFieldDeclaration*
+}
+
+LinkDirection { kw<"directed"> | kw<"undirected"> }
+
+// Links age: a decayed breed's links die `decay` ticks after they were
+// created or last refreshed (re-creating an existing link refreshes it).
+LinkDecay { kw<"decay"> Number }
+
+LinkFieldDeclaration { Identifier ":" Type "=" Expression lineEnd }
+
+SetupSection { kw<"setup"> ":" lineEnd SetupStatement* ~turnSection }
+
+StepSection { kw<"step"> kw<"staged">? ":" lineEnd StepStatement* ~turnSection }
+
+// Turn-based sections: `turn <seconds>:` (deadline), `turn:`, `turn staged:`,
+// and `turn async:`. Same body grammar as step sections, plus `decide`.
+// `round` sections drive decision models (the keyword avoids the
+// `turn(degrees)` collision). @extend-ed, not @specialize-d, so the
+// `round(x)` builtin keeps parsing as a plain identifier.
+RoundSection { ekw<"round"> (Number | kw<"staged"> | kw<"async">)? ":" lineEnd RoundStatement* ~turnSection }
+
+RoundStatement {
+  DecideStatement |
+  StepStatement
+}
+
+DecideStatement { kw<"decide"> Name ("," Name)* lineEnd }
+
+StopSection { kw<"stop"> kw<"when"> ParenthesizedExpression lineEnd* }
+
+// The brush body is statement-stripped before the grammar parse (like setup
+// and step bodies) and parsed semantically as patch agent actions.
+BrushSection { kw<"brush"> ":" lineEnd }
+
+SetupStatement {
+  CreateStatement |
+  ScatterStatement |
+  PatchRegionBlockHeader |
+  UpdateBlockHeader |
+  RepeatBlockHeader |
+  AgentMatchBlockHeader |
+  MatchBlockHeader |
+  MatchArmHeader |
+  WhereBlockHeader |
+  OtherwiseBlockHeader |
+  LetStatement |
+  AssignmentStatement |
+  CommandStatement lineEnd |
+  ActionCallStatement
+}
+
+StepStatement {
+  ScatterStatement |
+  PatchRegionBlockHeader |
+  UpdateBlockHeader |
+  RepeatBlockHeader |
+  AgentMatchBlockHeader |
+  MatchBlockHeader |
+  MatchArmHeader |
+  WhereBlockHeader |
+  OtherwiseBlockHeader |
+  LetStatement |
+  AssignmentStatement |
+  CommandStatement lineEnd |
+  ActionCallStatement
+}
+
+CreateStatement { kw<"create"> Identifier Expression lineEnd }
+
+// `scatter <spread>` around the agent itself, `scatter <spread> from <agent>`
+// around another agent, `scatter <spread> from <x>, <y>` around a point.
+ScatterStatement { kw<"scatter"> Expression (kw<"from"> Expression ("," Expression)?)? lineEnd }
+
+RepeatBlockHeader { kw<"repeat"> (Expression | Identifier !repeatRange kw<"in"> Expression ".." Expression) ":" lineEnd }
+
+UpdateBlockHeader { AgentSet WhereClause? ":" lineEnd }
+
+PatchRegionBlockHeader { PatchRegionSelector ":" lineEnd }
+
+PatchRegionSelector {
+  kw<"patches"> PatchRegionShape RadiusValue (kw<"around"> "(" Expression "," Expression ")")?
+}
+
+PatchRegionShape { kw<"in-radius"> | kw<"in-square"> }
+
+WhereBlockHeader { kw<"where"> (ParenthesizedExpression | StatePredicate) ":" lineEnd }
+
+OtherwiseBlockHeader { kw<"otherwise"> ":" lineEnd }
+
+MatchBlockHeader {
+  kw<"match"> Expression ("," Expression)* ":" lineEnd
+}
+
+AgentMatchBlockHeader {
+  AgentSet WhereClause? kw<"match"> Expression ("," Expression)* ":" lineEnd
+}
+
+// Match arm header. Single-identifier arms like `wandering:` parse as
+// UpdateBlockHeader at the grammar level — disambiguation happens in the
+// text parser based on whether we're inside a match block.
+MatchArmHeader {
+  MatchArmAtom (("," | "|") MatchArmAtom)+ ":" lineEnd |
+  Wildcard ":" lineEnd
+}
+
+MatchArmAtom {
+  Identifier |
+  Wildcard
+}
+
+AssignmentStatement {
+  InlineAssignment lineEnd |
+  AssignmentBlockHeader
+}
+
+InlineAssignment { AssignmentTarget AssignArrow Expression }
+
+AssignmentBlockHeader { AssignmentTarget AssignArrow ":" lineEnd }
+
+AssignArrow { "<-" | ":=" }
+
+AssignmentTarget { Name | FieldAccess | FunctionCall }
+
+CommandStatement {
+  CommandName "(" ExpressionList? ")" DiffuseOverClause? |
+  ZeroArgCommand
+}
+
+// `diffuse(field, amount) over <link-breed>` diffuses a pet field across the
+// link graph instead of the patch grid. Grammar-permissive (any command may
+// carry it); the semantic pass restricts it to `diffuse`.
+DiffuseOverClause { kw<"over"> Identifier }
+
+ZeroArgCommand {
+  kw<"die"> |
+  kw<"set-random-position">
+}
+
+ActionDeclaration { Identifier ":" lineEnd }
+
+ActionCallStatement {
+  Identifier "(" ExpressionList? ")" lineEnd |
+  Identifier lineEnd
+}
+
+CommandName {
+  kw<"forward"> |
+  ~turnSection kw<"turn"> |
+  kw<"face"> |
+  kw<"set-random-position"> |
+  kw<"set-position"> |
+  kw<"move-to"> |
+  kw<"diffuse"> |
+  kw<"die"> |
+  kw<"hatch"> |
+  kw<"kill"> |
+  kw<"kill-one"> |
+  kw<"create-link-with"> |
+  kw<"create-link-to"> |
+  kw<"die-link"> |
+  kw<"turn-towards"> |
+  kw<"turn-away"> |
+  kw<"follow-patch-gradient">
+}
+
+AgentSet { kw<"patches"> | kw<"pets"> | kw<"turtles"> | kw<"links"> | kw<"enemy">? Identifier }
+
+WhereClause { kw<"where"> (ParenthesizedExpression | StatePredicate) }
+
+StatePredicate { Identifier }
+
+ParenthesizedExpression { "(" Expression ")" }
+
+ControlExpression {
+  Identifier "(" Expression "," RangeLiteral ControlOption? ")" |
+  Expression
+}
+
+ControlOption { "," kw<"step"> Expression }
+
+ExpressionList { Expression ("," Expression)* }
+
+Expression {
+  IfExpression |
+  LogicExpression
+}
+
+IfExpression {
+  kw<"if"> ParenthesizedExpression kw<"then"> Expression kw<"else"> Expression
+}
+
+LogicExpression {
+  CompareExpression ((kw<"and"> | kw<"or">) CompareExpression)*
+}
+
+CompareExpression {
+  AddExpression (CompareOp AddExpression)?
+}
+
+AddExpression {
+  MultiplyExpression (("+" | "-") MultiplyExpression)*
+}
+
+MultiplyExpression {
+  RandomExpression (("*" | "/" | "%") RandomExpression)*
+}
+
+RandomExpression {
+  UnaryExpression (ekw<"random"> kw<"other">? AgentSet WhereClause?)?
+}
+
+UnaryExpression {
+  ("-" | kw<"not">)? PrimaryExpression
+}
+
+PrimaryExpression {
+  Number |
+  RadiusExpression |
+  Name |
+  FieldAccess |
+  FunctionCall |
+  NearestExpression |
+  AggregateExpression |
+  CountExpression |
+  AnyExpression |
+  SetLiteral |
+  ParenthesizedExpression
+}
+
+FunctionCall { Identifier "(" ExpressionList? ")" }
+
+FieldAccess { (FunctionCall | Name) "." Name }
+
+RadiusExpression { AgentSet kw<"in-radius"> RadiusValue }
+
+RadiusValue { Number | Name | FieldAccess | FunctionCall | ParenthesizedExpression }
+
+NearestExpression { kw<"nearest"> AgentSet WhereClause? }
+
+SetLiteral { "[" ExpressionList? "]" }
+
+CountExpression { kw<"count"> (AgentSet WhereClause? AroundClause? | NeighborSet WhereClause?) }
+
+AggregateExpression { (kw<"sum"> | kw<"mean"> | kw<"min"> | kw<"max">) AgentSet WhereClause? AroundClause? kw<"report"> ParenthesizedExpression }
+
+AnyExpression { kw<"any"> NeighborSet WhereClause? }
+
+NeighborSet { kw<"neighbors4"> | kw<"neighbors8"> | DirectedNeighborSet }
+
+DirectedNeighborSet { (kw<"neighbors-at"> | kw<"neighbours-at">) "(" NeighborDirectionList ")" }
+
+NeighborDirectionList { NeighborDirection ("," NeighborDirection)* }
+
+NeighborDirection { Identifier }
+
+AroundClause { kw<"around"> "(" Expression "," Expression ")" }
+
+RangeLiteral { SignedNumber ".." SignedNumber }
+
+SignedNumber { "-"? Number }
+
+CompareOp { "=" | "<" | ">" | "<=" | ">=" | "!=" | kw<"in"> }
+
+Type {
+  kw<"number"> |
+  kw<"boolean"> |
+  kw<"string"> |
+  kw<"set"> |
+  EnumType |
+  EnumLiteralType
+}
+
+Name { Identifier | kw<"x"> | kw<"y"> }
+
+EnumType { kw<"enum"> "(" Identifier ("," Identifier)* ")" }
+
+EnumLiteralType { Identifier ("|" Identifier)* }
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+ekw<term> { @extend[@name={term}]<Identifier, term> }
+
+@skip { space | Comment | BlockComment }
+
+@tokens {
+  DefHeader { @asciiLetter (@asciiLetter | @digit | "_" | "-")* $[ \t]* "(" ![\n\r]* ")" $[ \t]* ":" $[ \t]* ![:\n\r]+ ":" }
+  lineEnd { $[\n\r]+ }
+  space { $[ \t]+ }
+  Comment { "#" ![\n\r]* }
+  BlockComment { "\"\"\"" (!["] | "\"" !["] | "\"\"" !["])* "\"\"\"" }
+
+  Number { @digit+ ("." @digit+)? }
+  Wildcard { "_" }
+  Identifier { @asciiLetter (@asciiLetter | @digit | "_" | "-")* }
+
+  ":" "," "(" ")" "[" "]" "." "=" "<-" ":=" ".." "<" ">" "<=" ">=" "!=" "+" "-" "*" "/" "%" "|"
+
+  @precedence { DefHeader, Identifier }
+}
