@@ -2,7 +2,7 @@
 
 const path = require("path");
 const vscode = require("vscode");
-const { compilePetsToJavaScript } = require("../dist/compiler.cjs");
+const { compilePetsToJavaScript, instantiatePetsModel } = require("../dist/compiler.cjs");
 
 const LANGUAGE_ID = "pet";
 const output = vscode.window.createOutputChannel("Pet");
@@ -10,6 +10,9 @@ let savingForExplicitCompile = false;
 let previewPanel = null;
 let previewDocumentUri = null;
 let previewUpdateTimer = null;
+let previewRuntime = null;
+let previewRuntimeSource = null;
+let previewRunTimer = null;
 
 const TOP_LEVEL_SECTIONS = new Set([
   "model",
@@ -56,14 +59,21 @@ async function openPreview() {
       { enableScripts: true, retainContextWhenHidden: true },
     );
     previewPanel.onDidDispose(() => {
+      stopPreviewTimer();
       previewPanel = null;
       previewDocumentUri = null;
+      previewRuntime = null;
+      previewRuntimeSource = null;
     });
     previewPanel.webview.onDidReceiveMessage((message) => {
       if (message?.command === "compile") {
         compilePreviewDocument().catch(showPreviewError);
       } else if (message?.command === "refresh") {
         refreshPreviewDocument().catch(showPreviewError);
+      } else if (message?.command === "transport") {
+        handlePreviewTransport(message.action).catch(showPreviewError);
+      } else if (message?.command === "set-param") {
+        setPreviewParam(message.name, message.value).catch(showPreviewError);
       }
     });
   } else {
@@ -115,8 +125,57 @@ function updatePreview(document) {
   if (!previewPanel || document.languageId !== LANGUAGE_ID) {
     return;
   }
+  const source = document.getText();
+  if (source !== previewRuntimeSource) {
+    stopPreviewTimer();
+    const instantiated = instantiatePetsModel(source);
+    previewRuntime = instantiated.model;
+    previewRuntimeSource = source;
+  }
   previewPanel.title = previewTitle(document);
-  previewPanel.webview.html = renderPreviewHtml(document, previewPanel.webview);
+  previewPanel.webview.html = renderPreviewHtml(document, previewPanel.webview, previewRuntime?.getSnapshot?.() ?? null);
+}
+
+function stopPreviewTimer() {
+  if (previewRunTimer) clearInterval(previewRunTimer);
+  previewRunTimer = null;
+}
+
+async function handlePreviewTransport(action) {
+  if (!previewRuntime || !previewDocumentUri) return;
+  if (action === "play") {
+    previewRuntime.world.start();
+    stopPreviewTimer();
+    previewRunTimer = setInterval(async () => {
+      previewRuntime?.world.runTick();
+      if (previewDocumentUri && previewPanel) {
+        const document = await vscode.workspace.openTextDocument(previewDocumentUri);
+        const snapshot = previewRuntime?.getSnapshot?.() ?? null;
+        const analysis = analyzeCritSource(document.getText());
+        previewPanel.webview.postMessage({
+          command: "state",
+          ticks: snapshot?.ticks ?? 0,
+          status: snapshot?.status ?? "ready",
+          worldHtml: renderWorldSvg(analysis, snapshot),
+        });
+      }
+    }, 250);
+  } else if (action === "pause") {
+    previewRuntime.world.pause();
+    stopPreviewTimer();
+  } else if (action === "step") {
+    previewRuntime.world.runTick();
+  } else if (action === "reset") {
+    stopPreviewTimer();
+    previewRuntime.restart();
+  }
+  updatePreview(await vscode.workspace.openTextDocument(previewDocumentUri));
+}
+
+async function setPreviewParam(name, value) {
+  if (!previewRuntime || !previewDocumentUri) return;
+  previewRuntime.setParamValue(name, value);
+  updatePreview(await vscode.workspace.openTextDocument(previewDocumentUri));
 }
 
 async function refreshPreviewDocument() {
@@ -321,7 +380,7 @@ function registerCompletionProvider() {
   );
 }
 
-function renderPreviewHtml(document, webview) {
+function renderPreviewHtml(document, webview, snapshot = null) {
   const analysis = analyzeCritSource(document.getText());
   const compiled = {
     statusLabel: analysis.diagnostics.length > 0 ? "Needs fixes" : "Preview compiled",
@@ -441,7 +500,8 @@ function renderPreviewHtml(document, webview) {
   </nav>
   <main class="content">
     ${diagnostics}
-    <section id="overview" class="pane active">${renderOverview(analysis)}</section>
+    ${renderTransport(snapshot)}
+    <section id="overview" class="pane active">${renderOverview(analysis, snapshot)}</section>
     <section id="pets" class="pane"><pre><code>${escapeHtml(analysis.petsSource || "No MathPets body found.")}</code></pre></section>
     <section id="output" class="pane">${renderGeneratedOutput(compiled)}</section>
   </main>
@@ -458,12 +518,47 @@ function renderPreviewHtml(document, webview) {
     document.querySelectorAll("[data-command]").forEach((button) => {
       button.addEventListener("click", () => vscode.postMessage({ command: button.dataset.command }));
     });
+    document.querySelectorAll("[data-transport]").forEach((button) => {
+      button.addEventListener("click", () => vscode.postMessage({ command: "transport", action: button.dataset.transport }));
+    });
+    document.querySelectorAll("[data-param]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const value = input.type === "checkbox" ? input.checked : Number(input.value);
+        vscode.postMessage({ command: "set-param", name: input.dataset.param, value });
+      });
+    });
+    window.addEventListener("message", (event) => {
+      if (event.data?.command !== "state") return;
+      const tick = document.getElementById("preview-tick");
+      const status = document.getElementById("preview-status");
+      const play = document.getElementById("preview-play");
+      const world = document.getElementById("world-preview-container");
+      if (tick) tick.textContent = "Tick " + event.data.ticks;
+      if (status) status.textContent = event.data.status;
+      if (play) {
+        const running = event.data.status === "running";
+        play.textContent = running ? "Pause" : "Play";
+        play.dataset.transport = running ? "pause" : "play";
+      }
+      if (world && event.data.worldHtml) world.innerHTML = event.data.worldHtml;
+    });
   </script>
 </body>
 </html>`;
 }
 
-function renderOverview(analysis) {
+function renderTransport(snapshot) {
+  const running = snapshot?.status === "running";
+  return `<div class="transport" style="display:flex;align-items:center;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border)">
+    <button id="preview-play" data-transport="${running ? "pause" : "play"}">${running ? "Pause" : "Play"}</button>
+    <button data-transport="step">Step</button>
+    <button data-transport="reset">Reset</button>
+    <span id="preview-tick" class="muted">Tick ${escapeHtml(String(snapshot?.ticks ?? 0))}</span>
+    <span id="preview-status" class="badge">${escapeHtml(snapshot?.status ?? "not running")}</span>
+  </div>`;
+}
+
+function renderOverview(analysis, snapshot) {
   return `<div class="metric-grid">
     ${renderMetric(analysis.params.length, "Params")}
     ${renderMetric(analysis.monitors.length, "Monitors")}
@@ -474,7 +569,7 @@ function renderOverview(analysis) {
     <div class="panel">
       <h2>World</h2>
       <div class="world">
-        ${renderWorldSvg(analysis)}
+        <div id="world-preview-container">${renderWorldSvg(analysis, snapshot)}</div>
         <dl class="kv">
           <dt>Range X</dt><dd>${escapeHtml(formatRange(analysis.world.minX, analysis.world.maxX))}</dd>
           <dt>Range Y</dt><dd>${escapeHtml(formatRange(analysis.world.minY, analysis.world.maxY))}</dd>
@@ -484,7 +579,7 @@ function renderOverview(analysis) {
         </dl>
       </div>
     </div>
-    <div class="panel"><h2>Controls</h2>${renderControls(analysis.params)}</div>
+    <div class="panel"><h2>Controls</h2>${renderControls(analysis.params, snapshot?.params)}</div>
     <div class="panel"><h2>Fields And States</h2>${renderFieldsAndStates(analysis)}</div>
     <div class="panel"><h2>Structure</h2>${renderStructure(analysis)}</div>
   </div>`;
@@ -494,22 +589,24 @@ function renderMetric(value, label) {
   return `<div class="metric"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`;
 }
 
-function renderControls(params) {
+function renderControls(params, runtimeParams = {}) {
   if (params.length === 0) {
     return `<div class="empty">No params declared.</div>`;
   }
 
   return `<div class="control-list">${params.map((param) => {
     if (param.control?.kind === "slider") {
+      const value = runtimeParams[param.name] ?? param.control.value;
       return `<div class="control">
         <strong>${escapeHtml(param.name)}</strong>
-        <input type="range" min="${escapeAttribute(param.control.min)}" max="${escapeAttribute(param.control.max)}" step="${escapeAttribute(param.control.step ?? 1)}" value="${escapeAttribute(param.control.value)}" disabled>
-        <span>${escapeHtml(String(param.control.value))}</span>
+        <input data-param="${escapeAttribute(param.name)}" type="range" min="${escapeAttribute(param.control.min)}" max="${escapeAttribute(param.control.max)}" step="${escapeAttribute(param.control.step ?? 1)}" value="${escapeAttribute(value)}">
+        <span>${escapeHtml(String(value))}</span>
       </div>`;
     }
 
     if (param.control?.kind === "toggle") {
-      return `<div class="control"><strong>${escapeHtml(param.name)}</strong><input type="checkbox" ${param.control.value ? "checked" : ""} disabled><span>${param.control.value ? "true" : "false"}</span></div>`;
+      const value = runtimeParams[param.name] ?? param.control.value;
+      return `<div class="control"><strong>${escapeHtml(param.name)}</strong><input data-param="${escapeAttribute(param.name)}" type="checkbox" ${value ? "checked" : ""}><span>${value ? "true" : "false"}</span></div>`;
     }
 
     return `<div class="control"><strong>${escapeHtml(param.name)}</strong><span class="muted">${escapeHtml(param.type)}</span><span>${escapeHtml(param.value || "")}</span></div>`;
@@ -544,7 +641,7 @@ function renderStructure(analysis) {
     : `<div class="empty">No defs, pets, or steps found.</div>`}${notes}`;
 }
 
-function renderWorldSvg(analysis) {
+function renderWorldSvg(analysis, snapshot) {
   const width = Math.max(1, analysis.world.width ?? 16);
   const height = Math.max(1, analysis.world.height ?? 16);
   const columns = Math.min(18, Math.max(6, Math.round(Math.sqrt(width * 1.8))));
@@ -553,6 +650,29 @@ function renderWorldSvg(analysis) {
   const cellHeight = 150 / rows;
   const states = analysis.stateNames.length ? analysis.stateNames : ["field"];
   const cells = [];
+
+  if (snapshot?.patches?.length) {
+    const minX = analysis.world.minX ?? 0;
+    const minY = analysis.world.minY ?? 0;
+    const worldWidth = Math.max(1, analysis.world.width ?? 1);
+    const worldHeight = Math.max(1, analysis.world.height ?? 1);
+    const patchWidth = 240 / worldWidth;
+    const patchHeight = 150 / worldHeight;
+    for (const patch of snapshot.patches) {
+      const state = String(patch.state ?? "field");
+      const index = Math.max(0, analysis.stateNames.indexOf(state));
+      const color = analysis.stateColors[state] || fallbackColor(index);
+      const x = (Number(patch.px) - minX) * patchWidth;
+      const y = 150 - (Number(patch.py) - minY + 1) * patchHeight;
+      cells.push(`<rect x="${x}" y="${y}" width="${patchWidth + 0.5}" height="${patchHeight + 0.5}" fill="${escapeAttribute(color)}"/>`);
+    }
+    for (const pet of snapshot.turtles ?? []) {
+      const x = ((Number(pet.x) - minX + 0.5) / worldWidth) * 240;
+      const y = 150 - ((Number(pet.y) - minY + 0.5) / worldHeight) * 150;
+      cells.push(`<circle cx="${x}" cy="${y}" r="3" fill="#ffffff" stroke="#111827" stroke-width="1"/>`);
+    }
+    return `<svg class="world-svg" viewBox="0 0 240 150" role="img" aria-label="Live world preview"><rect x="0" y="0" width="240" height="150" fill="#101828"/>${cells.join("")}</svg>`;
+  }
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {

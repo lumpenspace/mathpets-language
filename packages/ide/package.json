@@ -2,7 +2,7 @@
   "name": "mathpets-ide",
   "displayName": "MathPets IDE",
   "description": "VS Code language support for MathPets .pet source files.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "publisher": "mathpets",
   "repository": {
@@ -49,22 +49,22 @@
     "commands": [
       {
         "command": "pets.openPreview",
-        "title": "Pet: Open Preview",
+        "title": "Open Preview",
         "category": "Pet"
       },
       {
         "command": "pets.compileFile",
-        "title": "Pet: Compile Current File",
+        "title": "Compile Current File",
         "category": "Pet"
       },
       {
         "command": "pets.compileWorkspace",
-        "title": "Pet: Compile Workspace",
+        "title": "Compile Workspace",
         "category": "Pet"
       },
       {
         "command": "pets.showOutput",
-        "title": "Pet: Show Compilation Output",
+        "title": "Show Compilation Output",
         "category": "Pet"
       }
     ],

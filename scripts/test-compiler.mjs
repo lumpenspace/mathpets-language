@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { compilePetsToJavaScript } = require("../packages/ide/dist/compiler.cjs");
+const { compilePetsToJavaScript, instantiatePetsModel } = require("../packages/ide/dist/compiler.cjs");
 const source = `model:
   name: Fire
 
@@ -27,6 +27,11 @@ step staged:
 const valid = compilePetsToJavaScript(source);
 if (!valid.code || valid.diagnostics.length) throw new Error(JSON.stringify(valid.diagnostics));
 if (!valid.code.includes("defineModel")) throw new Error("Emitter produced no model module.");
+const instantiated = instantiatePetsModel(source);
+if (!instantiated.model) throw new Error(JSON.stringify(instantiated.diagnostics));
+if (instantiated.model.getSnapshot().params.density !== 62) throw new Error("Runtime lost the authored parameter default.");
+instantiated.model.world.runTick();
+if (instantiated.model.getSnapshot().ticks !== 1) throw new Error("Runtime transport did not advance one tick.");
 const invalid = compilePetsToJavaScript(source.replace("density: number", "density: mystery"));
 if (invalid.code || invalid.diagnostics.length === 0) throw new Error("Invalid model was accepted.");
 console.log("compiler smoke test passed");
