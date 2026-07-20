@@ -6,6 +6,7 @@ const { compilePetsToJavaScript, instantiatePetsModel } = require("../dist/compi
 
 const LANGUAGE_ID = "pet";
 const output = vscode.window.createOutputChannel("Pet");
+const diagnosticCollection = vscode.languages.createDiagnosticCollection("mathpets");
 let savingForExplicitCompile = false;
 let previewPanel = null;
 let previewDocumentUri = null;
@@ -31,16 +32,53 @@ const TOP_LEVEL_SECTIONS = new Set([
 
 function activate(context) {
   context.subscriptions.push(output);
+  context.subscriptions.push(diagnosticCollection);
   context.subscriptions.push(vscode.commands.registerCommand("pets.openPreview", openPreview));
   context.subscriptions.push(vscode.commands.registerCommand("pets.compileFile", compileActiveFile));
   context.subscriptions.push(vscode.commands.registerCommand("pets.compileWorkspace", compileWorkspace));
   context.subscriptions.push(vscode.commands.registerCommand("pets.showOutput", () => output.show(true)));
+  context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: openModelUri }));
   context.subscriptions.push(registerCompletionProvider());
   context.subscriptions.push(registerCompileOnSave());
   context.subscriptions.push(registerPreviewRefresh());
 }
 
 function deactivate() {}
+
+async function openModelUri(uri) {
+  if (uri.path !== "/open") return;
+  const params = new URLSearchParams(uri.query);
+  const sourceUrl = params.get("url");
+  if (!sourceUrl) {
+    vscode.window.showErrorMessage("MathPets link is missing its model URL.");
+    return;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(sourceUrl);
+  } catch {
+    vscode.window.showErrorMessage("MathPets link contains an invalid model URL.");
+    return;
+  }
+  const allowedRemote = parsedUrl.protocol === "https:" && (parsedUrl.hostname === "mathpets.world" || parsedUrl.hostname.endsWith(".mathpets.world"));
+  const allowedLocal = parsedUrl.protocol === "http:" && (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1");
+  if (!allowedRemote && !allowedLocal) {
+    vscode.window.showErrorMessage("MathPets links may only load models from mathpets.world or localhost.");
+    return;
+  }
+
+  try {
+    const response = await fetch(parsedUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const source = await response.text();
+    const document = await vscode.workspace.openTextDocument({ language: LANGUAGE_ID, content: source });
+    await vscode.window.showTextDocument(document, { preview: false });
+    vscode.window.showInformationMessage(`Opened ${params.get("name") || "MathPets model"}. Save it to keep a local copy.`);
+  } catch (error) {
+    vscode.window.showErrorMessage(`Could not open MathPets model: ${error.message ?? String(error)}`);
+  }
+}
 
 async function openPreview() {
   const editor = vscode.window.activeTextEditor;
@@ -306,6 +344,7 @@ function compileDocument(document, options = {}) {
   output.appendLine(`${label}`);
 
   if (!compiled.code || compiled.diagnostics.length > 0) {
+    diagnosticCollection.set(document.uri, compiled.diagnostics.map((diagnostic) => toVscodeDiagnostic(document, diagnostic)));
     for (const diagnostic of compiled.diagnostics) {
       output.appendLine(`  error: ${diagnostic.message ?? String(diagnostic)}`);
     }
@@ -314,6 +353,8 @@ function compileDocument(document, options = {}) {
     }
     return false;
   }
+
+  diagnosticCollection.delete(document.uri);
 
   output.appendLine(`  model: ${analysis.metadata.name || "Untitled"}`);
   output.appendLine(`  world: ${analysis.world.width ?? "?"} x ${analysis.world.height ?? "?"}`);
@@ -327,6 +368,19 @@ function compileDocument(document, options = {}) {
   }
 
   return true;
+}
+
+function toVscodeDiagnostic(document, diagnostic) {
+  const from = Math.max(0, Math.min(document.getText().length, diagnostic.from ?? 0));
+  let to = Math.max(from, Math.min(document.getText().length, diagnostic.to ?? from));
+  if (to === from && to < document.getText().length) to += 1;
+  const item = new vscode.Diagnostic(
+    new vscode.Range(document.positionAt(from), document.positionAt(to)),
+    diagnostic.message ?? String(diagnostic),
+    vscode.DiagnosticSeverity.Error,
+  );
+  item.source = "MathPets";
+  return item;
 }
 
 function registerCompletionProvider() {

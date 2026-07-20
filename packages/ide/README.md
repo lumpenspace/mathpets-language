@@ -28,7 +28,7 @@ Build a local VSIX from the extension package:
 ```sh
 cd packages/ide
 npx @vscode/vsce package
-code --install-extension mathpets-ide-0.1.1.vsix
+code --install-extension mathpets-ide-0.1.2.vsix
 ```
 
 The `.vscodeignore` file keeps `vsce` from following the monorepo workspace graph into unrelated packages.
