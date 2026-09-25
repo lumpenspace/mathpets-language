@@ -17,8 +17,21 @@ export function normalizeHeading(heading: number) {
  * Converts a NetLogo heading to a unit vector.
  *
  * Heading `0` points north, `90` points east, `180` south, and `270` west.
+ * Axis headings return exact components: `Math.sin` and `Math.cos` leave a
+ * residue of about 1e-16 there, which accumulates in positions on a
+ * non-wrapping axis until integer patch lookups miss.
  */
 export function netLogoHeadingToVector(heading: number) {
+  switch (normalizeHeading(heading)) {
+    case 0:
+      return { x: 0, y: 1 };
+    case 90:
+      return { x: 1, y: 0 };
+    case 180:
+      return { x: 0, y: -1 };
+    case 270:
+      return { x: -1, y: 0 };
+  }
   const radians = (heading * Math.PI) / 180;
   return {
     x: Math.sin(radians),
