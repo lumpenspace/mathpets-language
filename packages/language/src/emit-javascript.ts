@@ -703,6 +703,13 @@ function emitPetAtHelper() {
     };
 
     const headingVector = (heading) => {
+      // Exact components on the axes; see netLogoHeadingToVector in the engine.
+      switch (normalizeHeading(Number(heading))) {
+        case 0: return { x: 0, y: 1 };
+        case 90: return { x: 1, y: 0 };
+        case 180: return { x: 0, y: -1 };
+        case 270: return { x: -1, y: 0 };
+      }
       const radians = (Number(heading) * Math.PI) / 180;
       return {
         x: Math.sin(radians),
